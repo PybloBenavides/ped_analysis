@@ -18,9 +18,13 @@ class Proband():
 
     def average_speed(self):
         subdata = self.data[(self.data['X']> self.test_field.XMIN) & (self.data['X']<= self.test_field.XMAX)].reset_index()
-        lapse = subdata.iloc[-1][TIME] - subdata.iloc[0][TIME]
-        speed = self.test_field.XDISTANCE / lapse # metros por segundo
-        return speed
+        try:
+            lapse = subdata.iloc[-1][TIME] - subdata.iloc[0][TIME]
+            speed = self.test_field.XDISTANCE / lapse # metros por segundo
+            return speed
+        except:
+            return None
+
     
     def speed_at_time(self, time):
         subdata = self.data[(self.data[TIME] >= (time -1)) & (self.data[TIME] <= (time +1))]
@@ -71,10 +75,14 @@ class Ped_Experiment():
         self.data = data
         self.test_field = Test_Field(data)
         self.people = {}
+        self.wrong_probands = set()
         flow = {}
         speed = {}
         for person_id in data.PERS_ID.unique():
             person = Proband(person_id, data[data[PERS_ID] == person_id], self.test_field)
+            if person.avg_speed is None:
+                self.wrong_probands.add( person_id )
+                continue
             self.people[person_id] = person
 
             flow_time = int(person.crossed_lim(self.test_field.XMAX))
@@ -113,7 +121,7 @@ class Ped_Experiment():
         return hv.Points(self.data, kdims=[X,Y]).opts(default_opts)
 
     def draw_timestamp(self, timestamp):
-        return hv.Points(self.data[self.data[TIME] == timestamp], kdims=[X,Y], vdims=[PERS_ID]).opts( marker='asterisk', size=50,
+        return hv.Points(self.data[self.data[TIME] == timestamp], kdims=[X,Y], vdims=[PERS_ID]).opts( marker='circle', size=50,
                                 title=f"Ped exp {self.name} at {timestamp}", width=800, height=600, tools=['hover'],
                                 active_tools=['wheel_zoom'])
 

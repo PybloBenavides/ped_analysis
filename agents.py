@@ -1,7 +1,8 @@
 import pandas as pd
 import holoviews as hv
+import hvplot.pandas
 import numpy as np
-from config import PED_ID, FLOW, SPEED, DENSITY, TIME, X, Y, PERS_ID
+from config import PED_ID, FLOW, SPEED, TIME, X, Y, PERS_ID, ENTRANCES_EXITS
 from holoviews import opts
 hv.extension('bokeh')
 default_opts = opts(height=600, width=800, tools=['hover'], active_tools=['wheel_zoom'])
@@ -55,13 +56,19 @@ class Test_Field():
     '''
     Base class for test field
     '''
-    def __init__(self,df):
+    def __init__(self,df, name):
         self.YMAX = df.Y.max()
         self.YMIN = df.Y.min()
         self.XMIN = df.X.min() +1
         self.XMAX = df.X.max() -1
         self.XDISTANCE = self.XMAX - self.XMIN
         self.AREA = self.XDISTANCE + (self.YMAX - self.YMIN)
+        entrance = ENTRANCES_EXITS[name][0]
+        exit = ENTRANCES_EXITS[name][1]
+        self.limits = hv.Segments((-5,0,5,0)).opts(color='black', line_width=3) * hv.Segments((-5,5,5,5)).opts(color='black', line_width=3) * \
+            hv.Segments((-5,0,-5,5)).opts(color='black', line_width=3) * hv.Segments((5,0,5,5)).opts(color='black', line_width=3) * \
+            hv.Segments((-5,2.5-entrance/2, -5, 2.5 + entrance/2)).opts(color='blue',line_width=3) * hv.Segments((5,2.5-exit/2, 5, 2.5 + exit/2)).opts(color='blue',line_width=3)
+        
     def __str__(self):
         return f"poligono de X entre {self.XMIN} y {self.XMAX} e Y entre {self.YMIN} y {self.YMAX}"
 
@@ -73,7 +80,7 @@ class Ped_Experiment():
     def __init__(self, data, name):
         self.name = name
         self.data = data
-        self.test_field = Test_Field(data)
+        self.test_field = Test_Field(data,name)
         self.people = {}
         self.wrong_probands = set()
         flow = {}
@@ -115,18 +122,22 @@ class Ped_Experiment():
 
         # self.density = self.groupby(TIME)[PERS_ID].count() / self.test_field.AREA
     
-
+    def plot_fd(self):
+        return self.fddata.hvplot.points(x='DENSITY', y='FLOW', color='SPEED', cmap='RdYlGn', title=f"Fundamental diagram of run {self.name}")
     # Drawing
     def draw( self ):
-        return hv.Points(self.data, kdims=[X,Y]).opts(default_opts)
+        return hv.Points(self.data, kdims=[X,Y]).opts(default_opts) * self.test_field.limits
+
 
     def draw_timestamp(self, timestamp):
-        return hv.Points(self.data[self.data[TIME] == timestamp], kdims=[X,Y], vdims=[PERS_ID]).opts( marker='circle', size=50,
-                                title=f"Ped exp {self.name} at {timestamp}", width=800, height=600, tools=['hover'],
+        people =  hv.Points(self.data[self.data[TIME] == timestamp], kdims=[X,Y], vdims=[PERS_ID]).opts( marker='circle', size=50, padding=(0,0),
+                                title=f"Ped exp {self.name} at {timestamp}", width=800, height=600, tools=['hover'], color=PERS_ID, cmap='Category20',
                                 active_tools=['wheel_zoom'])
+        return people * self.test_field.limits
 
     def draw_most_dense(self):
         timestamp = self.data.groupby(TIME)[PERS_ID].count().max()
-        return self.draw_timestamp(timestamp)
+        return self.draw_timestamp(timestamp).opts(ylabel='Y [m]', xlabel='X [m]') * self.test_field.limits
+
 
 
